@@ -44,7 +44,7 @@ class Zombie:
         self.frame = random.randint(0, 9)
         self.state = 'Idle'
         self.ball_count = 0
-
+        self.tx,self.ty = 1000,1000
         self.build_behavior_tree()
         self.patrol_locations = [(43, 274), (1118, 274), (1050, 494), (575, 804), (235, 991), (575, 804), (1050, 494),
                                 (1118, 274)]
@@ -118,6 +118,24 @@ class Zombie:
         else:
             return BehaviorTree.RUNNING
 
+    def move_run_to(self, tx, ty):
+        self.dir = math.atan2(ty - self.y, tx - self.x)
+        self.speed = RUN_SPEED_PPS
+        self.x -= self.speed * math.cos(self.dir) * game_framework.frame_time
+        self.y -= self.speed * math.sin(self.dir) * game_framework.frame_time
+
+    def zombie_run(self, r= 0.5):
+        self.state = 'Walk'
+        self.move_run_to(play_mode.boy.x, play_mode.boy.y)
+        if self.distance_less_than(play_mode.boy.x, play_mode.boy.y, self.x, self.y, r):
+            return BehaviorTree.SUCCESS
+        else:
+            return BehaviorTree.RUNNING
+    def ball_conparison(self):
+        if(self.ball_count < play_mode.boy.ball_count):
+            return BehaviorTree.SUCCESS
+        else:
+            return BehaviorTree.FAIL
     def get_patrol_location(self):
         self.tx, self.ty = self.patrol_locations[self.loc_no]
         self.loc_no = (self.loc_no + 1) % len(self.patrol_locations)
@@ -142,6 +160,13 @@ class Zombie:
 
         a5 = Action('순찰 위치 가져오기', self.get_patrol_location)
 
-        root = SEQ_patrol = Sequence('순찰', a5, a2)
+        SEQ_patrol = Sequence('순찰', a5, a2)
+
+        c2 = Condition('좀비가 공이 더 적은가?', self.ball_conparison)
+        a6 = Action('좀비 도망치기', self.zombie_run)
+        SEQ_ZOMBIE_RUN = Sequence('좀비 도망',c2, a6)
+        SEL_run_or_chase = Selector('도망 또는 추적', SEQ_ZOMBIE_RUN, a4)
+        SEQ_nearly = Sequence('좀비가 가까히 있으면 도망,추적', c1, SEL_run_or_chase)
+        root = SEL_nearly_or_wander = Selector('좀비가 까가히 있거나 배회',SEQ_nearly, SEQ_wander)
         self.bt = BehaviorTree(root)
 
